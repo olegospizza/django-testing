@@ -8,7 +8,10 @@ from django.urls import reverse
     ('news:home', 'news:detail', 'users:login', 'users:signup', 'users:logout')
 )
 def test_pages_availability_for_anonymous_user(client, name, news):
-    """Тестирование доступности страниц для анонимных пользователей."""
+    """
+    Тестирование доступности страниц для анонимных пользователей.
+    Для detail передаём id новости, остальные без аргументов.
+    """
     url = (
         reverse(name, args=(news.id,))
         if name == 'news:detail'
@@ -19,19 +22,25 @@ def test_pages_availability_for_anonymous_user(client, name, news):
 
 
 @pytest.mark.parametrize(
-    'client, expected_status',
+    'client, expected_status_edit, expected_status_delete',
     [
-        ('author_client', HTTPStatus.OK),
-        ('reader_client', HTTPStatus.NOT_FOUND),
+        ('author_client', HTTPStatus.OK, HTTPStatus.METHOD_NOT_ALLOWED),
+        ('reader_client', HTTPStatus.NOT_FOUND, HTTPStatus.NOT_FOUND),
     ],
     indirect=['client'],
 )
-def test_comment_edit_delete_availability(client, expected_status, comment):
+def test_comment_edit_delete_availability(
+    client, expected_status_edit, expected_status_delete, comment
+):
     """Проверка доступности страниц редактирования и удаления комментария."""
-    for name in ('news:edit', 'news:delete'):
-        url = reverse(name, args=(comment.id,))
-        response = client.get(url)
-        assert response.status_code == expected_status
+    edit_url = reverse('news:edit', args=(comment.id,))
+    delete_url = reverse('news:delete', args=(comment.id,))
+
+    response_edit = client.get(edit_url)
+    assert response_edit.status_code == expected_status_edit
+
+    response_delete = client.get(delete_url)
+    assert response_delete.status_code == expected_status_delete
 
 
 def test_anonymous_user_redirect_to_login(client, comment):
@@ -45,9 +54,12 @@ def test_anonymous_user_redirect_to_login(client, comment):
         assert response.url == expected_redirect
 
 
-def test_auth_pages_availability_for_all_users(client):
+@pytest.mark.parametrize(
+    'name',
+    ('users:login', 'users:signup', 'users:logout')
+)
+def test_auth_pages_availability_for_all_users(client, name):
     """Страницы входа, регистрации и выхода доступны всем пользователям."""
-    for name in ('users:login', 'users:signup', 'users:logout'):
-        url = reverse(name)
-        response = client.get(url)
-        assert response.status_code == HTTPStatus.OK
+    url = reverse(name)
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.OK

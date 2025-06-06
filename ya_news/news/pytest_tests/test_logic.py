@@ -27,16 +27,15 @@ def test_comment_creation_for_different_users(
 
     if expected_comments_count:
         assertRedirects(response, f'{detail_url}#comments')
+        new_comment = Comment.objects.latest('id')
+        assert new_comment.text == COMMENT_TEXT
+        assert new_comment.news == news
+        assert new_comment.author == author
     else:
         login_url = reverse('users:login')
         assertRedirects(response, f'{login_url}?next={detail_url}')
 
     assert Comment.objects.count() == initial_count + expected_comments_count
-    if expected_comments_count:
-        new_comment = Comment.objects.latest('id')
-        assert new_comment.text == COMMENT_TEXT
-        assert new_comment.news == news
-        assert new_comment.author == author
 
 
 def test_bad_words_in_comment(author_client, detail_url):
@@ -52,6 +51,7 @@ def test_bad_words_in_comment(author_client, detail_url):
     [
         ('author_client', HTTPStatus.FOUND, True),
         ('reader_client', HTTPStatus.NOT_FOUND, False),
+        ('client', HTTPStatus.FOUND, False),
     ],
     indirect=['client'],
 )
@@ -65,10 +65,14 @@ def test_comment_edit_for_different_users(
 
     assert response.status_code == expected_status
     comment.refresh_from_db()
+
     if expected_change:
         assertRedirects(response, f'{detail_url}#comments')
         assert comment.text == NEW_COMMENT_TEXT
     else:
+        if expected_status == HTTPStatus.FOUND:
+            login_url = reverse('users:login')
+            assertRedirects(response, f'{login_url}?next={edit_url}')
         assert comment.text == old_text
 
 
@@ -77,6 +81,7 @@ def test_comment_edit_for_different_users(
     [
         ('author_client', HTTPStatus.FOUND, True),
         ('reader_client', HTTPStatus.NOT_FOUND, False),
+        ('client', HTTPStatus.FOUND, False),
     ],
     indirect=['client'],
 )
@@ -86,11 +91,15 @@ def test_comment_delete_for_different_users(
     """Проверка удаления комментария разными пользователями."""
     delete_url = reverse('news:delete', args=(comment.id,))
     initial_count = Comment.objects.count()
-    response = client.delete(delete_url)
+    response = client.post(delete_url)
 
     assert response.status_code == expected_status
+
     if expected_change:
         assertRedirects(response, f'{detail_url}#comments')
         assert Comment.objects.count() == initial_count - 1
     else:
+        if expected_status == HTTPStatus.FOUND:
+            login_url = reverse('users:login')
+            assertRedirects(response, f'{login_url}?next={delete_url}')
         assert Comment.objects.count() == initial_count
