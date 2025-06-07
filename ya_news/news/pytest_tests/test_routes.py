@@ -1,123 +1,98 @@
 import pytest
 from http import HTTPStatus
 from django.urls import reverse
-from django.test.client import Client
 from pytest_django.asserts import assertRedirects
 
-from .conftest import (
-    URL_HOME,
-    URL_DETAIL,
-    URL_EDIT,
-    URL_DELETE,
-    URL_LOGIN,
-    URL_LOGOUT,
-    URL_SIGNUP,
-)
-
-NEW_ID = pytest.lazy_fixture('new_id_for_agrs')
-COMMENT_ID = pytest.lazy_fixture('comment_id_for_agrs')
-ANONYMOUS_CLIENT = Client()
-AUTHOR_CLIENT = pytest.lazy_fixture('author_client')
-NOT_AUTHOR_CLIENT = pytest.lazy_fixture('not_author_client')
 
 pytestmark = [pytest.mark.django_db]
 
 
 @pytest.mark.parametrize(
-    'name, path, args',
-    (
-        (URL_HOME, '/', None),
-        (URL_DETAIL, '/news/1/', NEW_ID),
-        (URL_EDIT, '/edit_comment/1/', COMMENT_ID),
-        (URL_DELETE, '/delete_comment/1/', COMMENT_ID),
-        (URL_LOGIN, '/auth/login/', None),
-        (URL_LOGOUT, '/auth/logout/', None),
-        (URL_SIGNUP, '/auth/signup/', None),
-    )
+    'name, expected_path, args',
+    [
+        ('news:home', '/', None),
+        ('news:detail', '/news/1/', [1]),
+        ('news:edit', '/edit_comment/1/', [1]),
+        ('news:delete', '/delete_comment/1/', [1]),
+        ('users:login', '/auth/login/', None),
+        ('users:logout', '/auth/logout/', None),
+        ('users:signup', '/auth/signup/', None),
+    ]
 )
-def test_correct_path_name(name, path, args):
-    """Проверяет корректность названий путей."""
+def test_reverse_names(name, expected_path, args):
+    """Проверяет соответствие namespace и путей."""
     url = reverse(name, args=args)
-    assert url == path, (
-        f'Путь "{path}" не соответствует namespace "{name}".'
+    assert url == expected_path, (
+        f'Ожидался путь {expected_path} для namespace {name}, '
+        f'но получен {url}.'
     )
 
 
 @pytest.mark.parametrize(
-    'parametrized_client, expected_statuses',
-    (
-        (ANONYMOUS_CLIENT, {
-            URL_HOME: HTTPStatus.OK,
-            URL_DETAIL: HTTPStatus.OK,
-            URL_LOGIN: HTTPStatus.OK,
-            URL_SIGNUP: HTTPStatus.OK,
-            URL_LOGOUT: HTTPStatus.FOUND,
-        }),
-        (AUTHOR_CLIENT, {
-            URL_HOME: HTTPStatus.OK,
-            URL_DETAIL: HTTPStatus.OK,
-            URL_LOGIN: HTTPStatus.OK,
-            URL_SIGNUP: HTTPStatus.OK,
-            URL_LOGOUT: HTTPStatus.FOUND,
-        }),
-    )
+    'client_fixture',
+    ['client', 'author_client']
 )
-def test_pages_availability_for_user(parametrized_client, expected_statuses):
-    """Проверка доступности страниц."""
-    for name, expected_status in expected_statuses.items():
-        args = NEW_ID if name == URL_DETAIL else None
-        url = reverse(name, args=args)
-        response = parametrized_client.get(url)
-        assert response.status_code == expected_status, (
-            f'Пользователь не смог попасть на страницу по namespace "{name}".'
-        )
-
-
 @pytest.mark.parametrize(
-    'name, id',
-    (
-        (URL_EDIT, COMMENT_ID),
-        (URL_DELETE, COMMENT_ID),
-    )
+    'name, args',
+    [
+        ('news:home', None),
+        ('news:detail', pytest.lazy_fixture('new_id_for_agrs')),
+        ('users:login', None),
+        ('users:signup', None),
+    ]
 )
-def test_redirect_for_anonymous_client(client, name, id):
-    """Проверяет переадресацию на логин для анонимов."""
-    url = reverse(name, args=id)
-    login_url = reverse(URL_LOGIN)
-    expected_url = f'{login_url}?next={url}'
+def test_pages_availability(client_fixture, name, args, request):
+    """Проверка доступности страниц для разных пользователей."""
+    client = request.getfixturevalue(client_fixture)
+    url = reverse(name, args=args)
     response = client.get(url)
-    assertRedirects(response, expected_url), (
-        'Неавторизированного пользователя должно перекинуть на страницу '
-        f'авторизации при заходе на страницу "{name}".'
+    assert response.status_code == HTTPStatus.OK, (
+        f'Пользователь не смог попасть на страницу по namespace "{name}".'
     )
 
 
 @pytest.mark.parametrize(
-    'parametrized_client, expected_status',
-    (
-        (AUTHOR_CLIENT, HTTPStatus.OK),
-        (NOT_AUTHOR_CLIENT, HTTPStatus.NOT_FOUND),
-    )
+    'name',
+    ['news:edit', 'news:delete']
+)
+def test_redirect_for_anonymous_user(client, name, comment_id_for_agrs):
+    """Проверка редиректа неавторизованного пользователя на логин."""
+    url = reverse(name, args=comment_id_for_agrs)
+    expected_url = reverse('users:login') + f'?next={url}'
+    response = client.get(url)
+    assertRedirects(response, expected_url)
+
+
+@pytest.mark.parametrize(
+    'client_fixture, expected_status',
+    [
+        ('author_client', HTTPStatus.OK),
+        ('not_author_client', HTTPStatus.NOT_FOUND),
+    ]
 )
 @pytest.mark.parametrize(
     'name',
-    (URL_EDIT, URL_DELETE),
+    ['news:edit', 'news:delete']
 )
-def test_pages_availability_for_different_users(
-    parametrized_client, expected_status, name, comment_id_for_agrs
+def test_edit_delete_availability_by_user_type(
+    client_fixture, expected_status, name, request, comment_id_for_agrs
 ):
-    """Проверка доступа к редактированию и удалению комментариев."""
+    """Проверка доступа к редактированию и удалению для автора и не-автора."""
+    client = request.getfixturevalue(client_fixture)
     url = reverse(name, args=comment_id_for_agrs)
-    response = parametrized_client.get(url)
+    response = client.get(url)
     assert response.status_code == expected_status, (
-        f'Неверный статус доступа к "{name}" '
-        f'для пользователя: {parametrized_client}.'
+        f'Неверный код ответа при попытке доступа к "{name}".'
     )
 
 
-def test_logout_redirect(author_client):
-    """Проверка, что logout редиректит на главную страницу."""
-    url = reverse(URL_LOGOUT)
-    response = author_client.post(url)
+def test_logout_redirects_authenticated_user(client, django_user_model):
+    """Проверка выхода (logout) авторизованного пользователя."""
+    django_user_model.objects.create_user(
+        username='testuser', password='pass'
+    )
+    client.login(username='testuser', password='pass')
+    url = reverse('users:logout')
+    response = client.post(url)
     assert response.status_code == HTTPStatus.FOUND
-    assert response.url == reverse(URL_HOME)
+    assert response.url == reverse('news:home')
