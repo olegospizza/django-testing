@@ -57,7 +57,7 @@ def test_bad_words_in_comment(author_client, detail_url):
 def test_comment_edit_for_different_users(
     client_name, expected_status, expected_change, comment, detail_url, request
 ):
-    """Проверка редактирования комментария разными пользователями."""
+    """Проверка редактирования комментария пользователями."""
     client = request.getfixturevalue(client_name)
     edit_url = reverse('news:edit', args=(comment.id,))
     old_text = comment.text

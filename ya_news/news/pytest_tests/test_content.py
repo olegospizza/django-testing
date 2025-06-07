@@ -2,6 +2,8 @@ from django.urls import reverse
 from django.conf import settings
 from news.forms import CommentForm
 
+NEWS_COUNT_ON_HOME_PAGE = 10
+
 
 def test_news_count_on_home_page(author_client, news_batch):
     """Количество новостей на главной странице не превышает лимит."""
@@ -45,7 +47,7 @@ def test_comment_form_unavailable_for_anonymous_user(client, detail_url):
 
 
 def test_single_news_in_list(author_client, news):
-    """Проверка, что одиночная новость отображается на главной."""
+    """Проверка, что новость отображается на главной."""
     url = reverse('news:home')
     response = author_client.get(url)
     object_list = response.context['object_list']
