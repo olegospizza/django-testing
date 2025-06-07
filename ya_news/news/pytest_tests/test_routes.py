@@ -40,7 +40,7 @@ def test_correct_path_name(name, path, args):
     """Проверяет корректность названий путей."""
     url = reverse(name, args=args)
     assert url == path, (
-        'Путь "{path}" не соответствует namespace "{name}".'
+        f'Путь "{path}" не соответствует namespace "{name}".'
     )
 
 
@@ -58,14 +58,12 @@ def test_correct_path_name(name, path, args):
         (URL_SIGNUP, None),
     )
 )
-def test_pages_availability_for_user(
-    parametrized_client, name, args
-):
-    """Неавторизированный и авторизированный пользователь имеет прав."""
+def test_pages_availability_for_user(parametrized_client, name, args):
+    """Проверяет доступность страниц для разных пользователей."""
     url = reverse(name, args=args)
     response = parametrized_client.get(url)
     assert response.status_code == HTTPStatus.OK, (
-        'Пользователь не смог попасть на страницу по namespace "{name}".'
+        f'Пользователь не смог попасть на страницу по namespace "{name}".'
     )
 
 
@@ -77,16 +75,14 @@ def test_pages_availability_for_user(
     )
 )
 def test_redirect_for_anonymous_client(client, name, id):
-    """Проверяет переадресацию на авторизацию."""
-    args = None
-    if id:
-        args = id
+    """Проверяет переадресацию неавторизованного пользователя на логин."""
+    args = id if id else None
     url = reverse(name, args=args)
     login_url = reverse(URL_LOGIN)
     expected_url = f'{login_url}?next={url}'
     response = client.get(url)
     assertRedirects(response, expected_url), (
-        'Неавторизированного пользователя должно перекинуть на страницу '
+        f'Неавторизированного пользователя должно перекинуть на страницу '
         f'авторизации при заходе на страницу "{name}".'
     )
 
@@ -109,7 +105,6 @@ def test_pages_availability_for_different_users(
     url = reverse(name, args=comment_id_for_agrs)
     response = parametrized_client.get(url)
     assert response.status_code == expected_status, (
-        'При попытке удалить или редактировать чужой комментарий должна'
-        ' выходить ошибка 404.'
-        f'"{name}".'
+        f'При попытке удалить или редактировать чужой комментарий должна '
+        f'выходить ошибка 404. URL namespace: "{name}".'
     )
