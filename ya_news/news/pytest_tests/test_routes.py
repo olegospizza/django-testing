@@ -8,44 +8,48 @@ from django.urls import reverse
     ('news:home', 'news:detail', 'users:login', 'users:signup')
 )
 def test_pages_availability_for_anonymous_user(client, name, news):
-    """Проверка доступности страниц для анонимных пользователей."""
-    url = (
-        reverse(name, args=(news.id,))
-        if name == 'news:detail'
-        else reverse(name)
-    )
+    """Проверка доступности страниц для анонимов."""
+    url = reverse(name, args=(news.pk,) if 'detail' in name else None)
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK
 
 
 @pytest.mark.parametrize(
-    'client, expected_status_edit, expected_status_delete',
+    'client_fixture, expected_status_edit, expected_status_delete',
     [
         ('author_client', HTTPStatus.OK, HTTPStatus.OK),
         ('reader_client', HTTPStatus.NOT_FOUND, HTTPStatus.NOT_FOUND),
-    ],
-    indirect=['client'],
+        ('client', HTTPStatus.FOUND, HTTPStatus.FOUND),
+    ]
 )
 def test_comment_edit_delete_availability(
-    client, expected_status_edit, expected_status_delete, comment
+    request,
+    client_fixture,
+    expected_status_edit,
+    expected_status_delete,
+    comment
 ):
-    """Проверка доступа к редактированию и удалению комментария."""
-    edit_url = reverse('news:edit', args=(comment.id,))
-    delete_url = reverse('news:delete', args=(comment.id,))
+    """Проверка доступа к редактированию и удалению комментариев."""
+    client = request.getfixturevalue(client_fixture)
 
-    response_edit = client.get(edit_url)
-    assert response_edit.status_code == expected_status_edit
+    for name, expected_status in (
+        ('news:edit', expected_status_edit),
+        ('news:delete', expected_status_delete),
+    ):
+        url = reverse(name, args=(comment.pk,))
+        response = client.get(url)
+        assert response.status_code == expected_status
 
-    response_delete = client.get(delete_url)
-    assert response_delete.status_code == expected_status_delete
+        if expected_status == HTTPStatus.FOUND:
+            login_url = reverse('users:login')
+            assert response.url.startswith(login_url)
 
 
 def test_anonymous_user_redirect_to_login(client, comment):
-    """Аноним перенаправляется на логин."""
-    login_url = reverse('users:login')
+    """Анонимный пользователь при попытке редактирования."""
     for name in ('news:edit', 'news:delete'):
-        url = reverse(name, args=(comment.id,))
-        expected_redirect = f'{login_url}?next={url}'
+        url = reverse(name, args=(comment.pk,))
+        expected_redirect = reverse('users:login') + f'?next={url}'
         response = client.get(url)
         assert response.status_code == HTTPStatus.FOUND
         assert response.url == expected_redirect
@@ -62,14 +66,12 @@ def test_anonymous_user_redirect_to_login(client, comment):
 def test_auth_pages_availability_for_all_users(
     client, name, method, expected_status, django_user_model
 ):
-    """Проверка доступности логина, регистрации."""
+    """Проверка доступности login/signup/logout."""
     if name == 'users:logout':
-        username = 'testuser'
-        password = '12345'
-        django_user_model.objects.create_user(username=username,
-                                              password=password)
-        logged_in = client.login(username=username, password=password)
-        assert logged_in
+        user = django_user_model.objects.create_user(
+            username='logout_user', password='pass'
+        )
+        assert client.login(username='logout_user', password='pass')
 
     url = reverse(name)
     response = getattr(client, method)(url)
