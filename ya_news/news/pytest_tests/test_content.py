@@ -1,5 +1,4 @@
 from django.urls import reverse
-from django.conf import settings
 from news.forms import CommentForm
 
 NEWS_COUNT_ON_HOME_PAGE = 10
