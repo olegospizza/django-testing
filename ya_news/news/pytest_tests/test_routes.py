@@ -1,8 +1,7 @@
-from http import HTTPStatus
-
 import pytest
-from django.test.client import Client
+from http import HTTPStatus
 from django.urls import reverse
+from django.test.client import Client
 from pytest_django.asserts import assertRedirects
 
 from .conftest import (
@@ -45,26 +44,33 @@ def test_correct_path_name(name, path, args):
 
 
 @pytest.mark.parametrize(
-    'parametrized_client',
-    (ANONYMOUS_CLIENT, AUTHOR_CLIENT)
-)
-@pytest.mark.parametrize(
-    'name, args',
+    'parametrized_client, expected_statuses',
     (
-        (URL_HOME, None),
-        (URL_DETAIL, NEW_ID),
-        (URL_LOGIN, None),
-        (URL_LOGOUT, None),
-        (URL_SIGNUP, None),
+        (ANONYMOUS_CLIENT, {
+            URL_HOME: HTTPStatus.OK,
+            URL_DETAIL: HTTPStatus.OK,
+            URL_LOGIN: HTTPStatus.OK,
+            URL_SIGNUP: HTTPStatus.OK,
+            URL_LOGOUT: HTTPStatus.FOUND,
+        }),
+        (AUTHOR_CLIENT, {
+            URL_HOME: HTTPStatus.OK,
+            URL_DETAIL: HTTPStatus.OK,
+            URL_LOGIN: HTTPStatus.OK,
+            URL_SIGNUP: HTTPStatus.OK,
+            URL_LOGOUT: HTTPStatus.FOUND,
+        }),
     )
 )
-def test_pages_availability_for_user(parametrized_client, name, args):
-    """Проверяет доступность страниц для разных пользователей."""
-    url = reverse(name, args=args)
-    response = parametrized_client.get(url)
-    assert response.status_code == HTTPStatus.OK, (
-        f'Пользователь не смог попасть на страницу по namespace "{name}".'
-    )
+def test_pages_availability_for_user(parametrized_client, expected_statuses):
+    """Проверка доступности страниц."""
+    for name, expected_status in expected_statuses.items():
+        args = NEW_ID if name == URL_DETAIL else None
+        url = reverse(name, args=args)
+        response = parametrized_client.get(url)
+        assert response.status_code == expected_status, (
+            f'Пользователь не смог попасть на страницу по namespace "{name}".'
+        )
 
 
 @pytest.mark.parametrize(
@@ -75,14 +81,13 @@ def test_pages_availability_for_user(parametrized_client, name, args):
     )
 )
 def test_redirect_for_anonymous_client(client, name, id):
-    """Проверяет переадресацию неавторизованного пользователя на логин."""
-    args = id if id else None
-    url = reverse(name, args=args)
+    """Проверяет переадресацию на логин для анонимов."""
+    url = reverse(name, args=id)
     login_url = reverse(URL_LOGIN)
     expected_url = f'{login_url}?next={url}'
     response = client.get(url)
     assertRedirects(response, expected_url), (
-        f'Неавторизированного пользователя должно перекинуть на страницу '
+        'Неавторизированного пользователя должно перекинуть на страницу '
         f'авторизации при заходе на страницу "{name}".'
     )
 
@@ -101,10 +106,18 @@ def test_redirect_for_anonymous_client(client, name, id):
 def test_pages_availability_for_different_users(
     parametrized_client, expected_status, name, comment_id_for_agrs
 ):
-    """Проверяет доступ к редактированию и удалению комментариев."""
+    """Проверка доступа к редактированию и удалению комментариев."""
     url = reverse(name, args=comment_id_for_agrs)
     response = parametrized_client.get(url)
     assert response.status_code == expected_status, (
-        f'При попытке удалить или редактировать чужой комментарий должна '
-        f'выходить ошибка 404. URL namespace: "{name}".'
+        f'Неверный статус доступа к "{name}" '
+        f'для пользователя: {parametrized_client}.'
     )
+
+
+def test_logout_redirect(author_client):
+    """Проверка, что logout редиректит на главную страницу."""
+    url = reverse(URL_LOGOUT)
+    response = author_client.post(url)
+    assert response.status_code == HTTPStatus.FOUND
+    assert response.url == reverse(URL_HOME)
