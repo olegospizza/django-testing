@@ -5,7 +5,7 @@ from django.urls import reverse
 
 @pytest.mark.parametrize(
     'name',
-    ('news:home', 'news:detail', 'users:login', 'users:signup', 'users:logout')
+    ('news:home', 'news:detail', 'users:login', 'users:signup')
 )
 def test_pages_availability_for_anonymous_user(client, name, news):
     """
@@ -24,7 +24,7 @@ def test_pages_availability_for_anonymous_user(client, name, news):
 @pytest.mark.parametrize(
     'client, expected_status_edit, expected_status_delete',
     [
-        ('author_client', HTTPStatus.OK, HTTPStatus.METHOD_NOT_ALLOWED),
+        ('author_client', HTTPStatus.OK, HTTPStatus.OK),
         ('reader_client', HTTPStatus.NOT_FOUND, HTTPStatus.NOT_FOUND),
     ],
     indirect=['client'],
@@ -55,11 +55,26 @@ def test_anonymous_user_redirect_to_login(client, comment):
 
 
 @pytest.mark.parametrize(
-    'name',
-    ('users:login', 'users:signup', 'users:logout')
+    'name, method, expected_status',
+    [
+        ('users:login', 'get', HTTPStatus.OK),
+        ('users:signup', 'get', HTTPStatus.OK),
+        ('users:logout', 'post', HTTPStatus.FOUND),
+    ]
 )
-def test_auth_pages_availability_for_all_users(client, name):
+def test_auth_pages_availability_for_all_users(client,
+                                               name,
+                                               method,
+                                               expected_status,
+                                               django_user_model):
     """Страницы входа, регистрации и выхода доступны всем пользователям."""
+    if name == 'users:logout':
+        username = 'testuser'
+        password = '12345'
+        django_user_model.objects.create_user(username=username,
+                                              password=password)
+        client.login(username=username, password=password)
+
     url = reverse(name)
-    response = client.get(url)
-    assert response.status_code == HTTPStatus.OK
+    response = getattr(client, method)(url)
+    assert response.status_code == expected_status

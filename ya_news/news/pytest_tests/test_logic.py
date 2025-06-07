@@ -47,18 +47,18 @@ def test_bad_words_in_comment(author_client, detail_url):
 
 
 @pytest.mark.parametrize(
-    'client, expected_status, expected_change',
+    'client_name, expected_status, expected_change',
     [
         ('author_client', HTTPStatus.FOUND, True),
         ('reader_client', HTTPStatus.NOT_FOUND, False),
         ('client', HTTPStatus.FOUND, False),
     ],
-    indirect=['client'],
 )
 def test_comment_edit_for_different_users(
-    client, expected_status, expected_change, comment, detail_url
+    client_name, expected_status, expected_change, comment, detail_url, request
 ):
     """Проверка редактирования комментария разными пользователями."""
+    client = request.getfixturevalue(client_name)
     edit_url = reverse('news:edit', args=(comment.id,))
     old_text = comment.text
     response = client.post(edit_url, data={'text': NEW_COMMENT_TEXT})
@@ -77,18 +77,18 @@ def test_comment_edit_for_different_users(
 
 
 @pytest.mark.parametrize(
-    'client, expected_status, expected_change',
+    'client_name, expected_status, expected_change',
     [
         ('author_client', HTTPStatus.FOUND, True),
         ('reader_client', HTTPStatus.NOT_FOUND, False),
         ('client', HTTPStatus.FOUND, False),
     ],
-    indirect=['client'],
 )
 def test_comment_delete_for_different_users(
-    client, expected_status, expected_change, comment, detail_url
+    client_name, expected_status, expected_change, comment, detail_url, request
 ):
     """Проверка удаления комментария разными пользователями."""
+    client = request.getfixturevalue(client_name)
     delete_url = reverse('news:delete', args=(comment.id,))
     initial_count = Comment.objects.count()
     response = client.post(delete_url)
