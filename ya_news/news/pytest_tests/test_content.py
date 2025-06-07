@@ -10,7 +10,7 @@ def test_news_count_on_home_page(author_client, news_batch):
     url = reverse('news:home')
     response = author_client.get(url)
     object_list = response.context['object_list']
-    assert len(object_list) == settings.NEWS_COUNT_ON_HOME_PAGE
+    assert len(object_list) == NEWS_COUNT_ON_HOME_PAGE
 
 
 def test_news_order_on_home_page(author_client, news_batch):

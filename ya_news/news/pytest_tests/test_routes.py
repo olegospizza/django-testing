@@ -8,7 +8,7 @@ from django.urls import reverse
     ('news:home', 'news:detail', 'users:login', 'users:signup')
 )
 def test_pages_availability_for_anonymous_user(client, name, news):
-    """Проверка доступности страниц для анонимов."""
+    """Проверка доступности страниц для анонимных пользователей."""
     url = reverse(name, args=(news.pk,) if 'detail' in name else None)
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK
@@ -39,14 +39,13 @@ def test_comment_edit_delete_availability(
         url = reverse(name, args=(comment.pk,))
         response = client.get(url)
         assert response.status_code == expected_status
-
         if expected_status == HTTPStatus.FOUND:
             login_url = reverse('users:login')
             assert response.url.startswith(login_url)
 
 
 def test_anonymous_user_redirect_to_login(client, comment):
-    """Анонимный пользователь при попытке редактирования."""
+    """Проверка редиректа анонимного пользователя."""
     for name in ('news:edit', 'news:delete'):
         url = reverse(name, args=(comment.pk,))
         expected_redirect = reverse('users:login') + f'?next={url}'
@@ -66,9 +65,9 @@ def test_anonymous_user_redirect_to_login(client, comment):
 def test_auth_pages_availability_for_all_users(
     client, name, method, expected_status, django_user_model
 ):
-    """Проверка доступности login/signup/logout."""
+    """Проверка доступности login, signup и logout для пользователей."""
     if name == 'users:logout':
-        user = django_user_model.objects.create_user(
+        django_user_model.objects.create_user(
             username='logout_user', password='pass'
         )
         assert client.login(username='logout_user', password='pass')
